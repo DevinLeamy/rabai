@@ -3,6 +3,9 @@ name = "rabai"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+shellfn = "0.1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.91"
+anyhow = "1.0.68"
+
