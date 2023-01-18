@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::Deserialize;
 use shellfn::shell;
-use std::error::Error;
+
 /**
  * What if we wrote a derive macro that would take in a shell function and then
  * send the output result an argument to the function that called it. For instance,
@@ -13,6 +13,15 @@ use std::error::Error;
  *
  * THIS WOULD BE SO NICE TO WORK WITH!
  */
+
+#[derive(Debug, Clone, Deserialize)]
+#[allow(unused)]
+// Note: When yabai is started, the contents of "~/.yabairc" are run
+struct YabaiConfig {
+    /// The amount that a window is shifted when resized to the left
+    /// or right
+    resize_shift: u32,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[allow(unused)]
