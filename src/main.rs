@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::Parser;
 use serde::Deserialize;
 use shellfn::shell;
-use std::process::{self, ExitStatus};
 
 /**
  * What if we wrote a derive macro that would take in a shell function and then
@@ -22,6 +21,8 @@ use std::process::{self, ExitStatus};
  */
 mod args;
 use args::{Args, Command};
+mod yabai;
+use yabai::{WindowTarget, YabaiCommand};
 
 fn main() {
     let context = YabaiContext::new(YabaiWindows::init().unwrap());
@@ -33,6 +34,8 @@ fn main() {
 
     match command {
         Command::Next => yabai_focus_next(),
+        Command::Previous => yabai_focus_previous(),
+        Command::Swap => yabai_swap(),
         _ => {}
     };
 
@@ -166,28 +169,31 @@ fn yabai_resize_right() -> () {
     todo!()
 }
 /// Swap two windows
+/// Swaps with the next window, or the first if the current
+/// window is the last window
 fn yabai_swap() -> () {
-    todo!()
+    if YabaiCommand::Swap(WindowTarget::Next).run().is_err() {
+        // Swap with the first window
+        YabaiCommand::Swap(WindowTarget::First).run().unwrap();
+    }
 }
+
 /// Focus on the next window (cycles)
 fn yabai_focus_next() {
-    if yabai_cmd(vec!["-m", "window", "--focus", "next"]).is_err() {
+    if YabaiCommand::Focus(WindowTarget::Next).run().is_err() {
         // Cycle to the first window
-        yabai_cmd(vec!["-m", "window", "--focus", "first"]).unwrap();
+        YabaiCommand::Focus(WindowTarget::First).run().unwrap();
+    }
+}
+
+/// Focus on the next window (cycles)
+fn yabai_focus_previous() {
+    if YabaiCommand::Focus(WindowTarget::Previous).run().is_err() {
+        // Cycle to the first window
+        YabaiCommand::Focus(WindowTarget::Last).run().unwrap();
     }
 }
 /// Make all of the windows on a display fullscreen or non-fullscreen
 fn yabai_toggle_fullscreen() {
     todo!()
-}
-
-fn yabai_cmd(args: Vec<&'static str>) -> Result<()> {
-    let output = process::Command::new("yabai")
-        .args(args.as_slice())
-        .output()?;
-
-    if !output.status.success() {
-        return Err(anyhow::anyhow!("Yabai command failed"));
-    }
-    Ok(())
 }
