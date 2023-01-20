@@ -1,6 +1,8 @@
 use anyhow::Result;
+use clap::Parser;
 use serde::Deserialize;
 use shellfn::shell;
+use std::process::{self, ExitStatus};
 
 /**
  * What if we wrote a derive macro that would take in a shell function and then
@@ -12,11 +14,42 @@ use shellfn::shell;
  * }
  *
  * THIS WOULD BE SO NICE TO WORK WITH!
+ *
+ *
+ * Yabai problem (bug?)
+ * - Sometimes windows end up in a 50:50 horizontal split.
+ * - I only want VERTICAL splits. Why does this happen???
  */
+mod args;
+use args::{Args, Command};
+
+fn main() {
+    let context = YabaiContext::new(YabaiWindows::init().unwrap());
+    let command = Args::parse().command;
+
+    for window in context.windows.windows {
+        println!("{:?}", window.id);
+    }
+
+    match command {
+        Command::Next => yabai_focus_next(),
+        _ => {}
+    };
+
+    println!("{:?}", command);
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[allow(unused)]
 // Note: When yabai is started, the contents of "~/.yabairc" are run
+//
+// This config is NOT a replacement for ".yabairc", but rather something
+// more like Amethyst's configuration options. I.e. configuration for the
+// current layout, size to shift, perhaps the specific keybindings for
+// given operations, etc...
+//
+// At the very least, it will contain all of the imformation I need to implement
+// my little hacky scripts, in a better way.
 struct YabaiConfig {
     /// The amount that a window is shifted when resized to the left
     /// or right
@@ -115,10 +148,6 @@ fn raw_window_data() -> Result<String> {
 "#
 }
 
-fn main() {
-    let context = YabaiContext::new(YabaiWindows::init().unwrap());
-}
-
 /// Returns the focused window
 fn focused_window(windows: &Vec<YabaiWindow>) -> Option<YabaiWindow> {
     for window in windows {
@@ -131,9 +160,7 @@ fn focused_window(windows: &Vec<YabaiWindow>) -> Option<YabaiWindow> {
 }
 
 /// Shrink left window
-fn yabai_resize_left() -> () {
-    todo!()
-}
+fn yabai_resize_left() -> () {}
 /// Shrink right window
 fn yabai_resize_right() -> () {
     todo!()
@@ -144,9 +171,23 @@ fn yabai_swap() -> () {
 }
 /// Focus on the next window (cycles)
 fn yabai_focus_next() {
-    todo!()
+    if yabai_cmd(vec!["-m", "window", "--focus", "next"]).is_err() {
+        // Cycle to the first window
+        yabai_cmd(vec!["-m", "window", "--focus", "first"]).unwrap();
+    }
 }
 /// Make all of the windows on a display fullscreen or non-fullscreen
 fn yabai_toggle_fullscreen() {
     todo!()
+}
+
+fn yabai_cmd(args: Vec<&'static str>) -> Result<()> {
+    let output = process::Command::new("yabai")
+        .args(args.as_slice())
+        .output()?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!("Yabai command failed"));
+    }
+    Ok(())
 }
