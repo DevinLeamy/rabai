@@ -22,24 +22,34 @@ use shellfn::shell;
 mod args;
 use args::{Args, Command};
 mod yabai;
-use yabai::{WindowTarget, YabaiCommand};
+use yabai::{Direction, WindowTarget, YabaiCommand};
 
 fn main() {
     let context = YabaiContext::new(YabaiWindows::init().unwrap());
     let command = Args::parse().command;
+    let config = YabaiConfig { resize_shift: 80 };
 
     for window in context.windows.windows {
         println!("{:?}", window.id);
     }
 
+    println!("{:?}", command);
+
     match command {
         Command::Next => yabai_focus_next(),
         Command::Previous => yabai_focus_previous(),
         Command::Swap => yabai_swap(),
+        Command::Resize { direction } => {
+            if &direction == "left" {
+                yabai_resize_left(&config).unwrap();
+            } else if &direction == "right" {
+                yabai_resize_right(&config).unwrap();
+            } else {
+                println!("Error: Invalid argument to resize");
+            }
+        }
         _ => {}
     };
-
-    println!("{:?}", command);
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -56,7 +66,7 @@ fn main() {
 struct YabaiConfig {
     /// The amount that a window is shifted when resized to the left
     /// or right
-    resize_shift: u32,
+    resize_shift: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -163,11 +173,27 @@ fn focused_window(windows: &Vec<YabaiWindow>) -> Option<YabaiWindow> {
 }
 
 /// Shrink left window
-fn yabai_resize_left() -> () {}
-/// Shrink right window
-fn yabai_resize_right() -> () {
-    todo!()
+fn yabai_resize_left(config: &YabaiConfig) -> Result<()> {
+    if YabaiCommand::Resize(Direction::Left, -config.resize_shift)
+        .run()
+        .is_err()
+    {
+        YabaiCommand::Resize(Direction::Right, -config.resize_shift).run()?;
+    }
+    Ok(())
 }
+
+/// Shrink right window
+fn yabai_resize_right(config: &YabaiConfig) -> Result<()> {
+    if YabaiCommand::Resize(Direction::Right, config.resize_shift)
+        .run()
+        .is_err()
+    {
+        YabaiCommand::Resize(Direction::Left, config.resize_shift).run()?;
+    }
+    Ok(())
+}
+
 /// Swap two windows
 /// Swaps with the next window, or the first if the current
 /// window is the last window

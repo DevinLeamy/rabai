@@ -23,4 +23,6 @@ pub enum Command {
         /// The value of the configuration option, i.e. "20"
         value: String,
     },
+    /// Resize the window's right border to the left
+    Resize { direction: String },
 }

@@ -10,6 +10,21 @@ pub enum WindowTarget {
     Previous,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    Left,
+    Right,
+}
+
+impl ToString for Direction {
+    fn to_string(&self) -> String {
+        match self {
+            Direction::Left => "left".to_string(),
+            Direction::Right => "right".to_string(),
+        }
+    }
+}
+
 impl ToString for WindowTarget {
     fn to_string(&self) -> String {
         match self {
@@ -25,6 +40,7 @@ impl ToString for WindowTarget {
 pub enum YabaiCommand {
     Focus(WindowTarget),
     Swap(WindowTarget),
+    Resize(Direction, i32),
 }
 
 impl Into<Vec<String>> for YabaiCommand {
@@ -39,6 +55,11 @@ impl Into<Vec<String>> for YabaiCommand {
                 "window".to_string(),
                 "--swap".to_string(),
                 target.to_string(),
+            ],
+            YabaiCommand::Resize(direction, amount) => vec![
+                "window".to_string(),
+                "--resize".to_string(),
+                format!("{}:{}:0", direction.to_string(), amount),
             ],
         }
     }
