@@ -25,4 +25,6 @@ pub enum Command {
     },
     /// Resize the window's right border to the left
     Resize { direction: String },
+    /// Toggle fullscreen
+    ToggleFullscreen,
 }

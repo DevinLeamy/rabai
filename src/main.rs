@@ -29,10 +29,6 @@ fn main() {
     let command = Args::parse().command;
     let config = YabaiConfig { resize_shift: 80 };
 
-    for window in context.windows.windows {
-        println!("{:?}", window.id);
-    }
-
     println!("{:?}", command);
 
     match command {
@@ -48,6 +44,7 @@ fn main() {
                 println!("Error: Invalid argument to resize");
             }
         }
+        Command::ToggleFullscreen => yabai_toggle_fullscreen(&context),
         _ => {}
     };
 }
@@ -141,6 +138,17 @@ impl YabaiWindows {
 
         Ok(Self { windows })
     }
+
+    /// Returns the focused window
+    fn focused_window(&self) -> Option<YabaiWindow> {
+        for window in &self.windows {
+            if window.has_focus {
+                return Some(window.clone());
+            }
+        }
+
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -159,17 +167,6 @@ fn raw_window_data() -> Result<String> {
     r#"
     yabai -m query --windows
 "#
-}
-
-/// Returns the focused window
-fn focused_window(windows: &Vec<YabaiWindow>) -> Option<YabaiWindow> {
-    for window in windows {
-        if window.has_focus {
-            return Some(window.clone());
-        }
-    }
-
-    None
 }
 
 /// Shrink left window
@@ -220,6 +217,19 @@ fn yabai_focus_previous() {
     }
 }
 /// Make all of the windows on a display fullscreen or non-fullscreen
-fn yabai_toggle_fullscreen() {
-    todo!()
+fn yabai_toggle_fullscreen(context: &YabaiContext) {
+    let focused_window = context.windows.focused_window();
+    if focused_window.is_none() {
+        return;
+    }
+    let focused_window = focused_window.unwrap();
+    let new_fullscreen_setting = !focused_window.has_fullscreen_zoom;
+
+    for window in context.windows.windows.iter() {
+        if window.has_fullscreen_zoom != new_fullscreen_setting {
+            YabaiCommand::ToggleFullscreen(WindowTarget::Id(window.id))
+                .run()
+                .unwrap();
+        }
+    }
 }

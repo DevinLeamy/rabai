@@ -8,6 +8,7 @@ pub enum WindowTarget {
     First,
     Last,
     Previous,
+    Id(u32),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -32,6 +33,7 @@ impl ToString for WindowTarget {
             WindowTarget::First => "first".to_string(),
             WindowTarget::Last => "last".to_string(),
             WindowTarget::Previous => "prev".to_string(),
+            WindowTarget::Id(id) => id.to_string(),
         }
     }
 }
@@ -41,6 +43,7 @@ pub enum YabaiCommand {
     Focus(WindowTarget),
     Swap(WindowTarget),
     Resize(Direction, i32),
+    ToggleFullscreen(WindowTarget),
 }
 
 impl Into<Vec<String>> for YabaiCommand {
@@ -61,6 +64,14 @@ impl Into<Vec<String>> for YabaiCommand {
                 "--resize".to_string(),
                 format!("{}:{}:0", direction.to_string(), amount),
             ],
+            YabaiCommand::ToggleFullscreen(target) => {
+                vec![
+                    "window".to_string(),
+                    target.to_string(),
+                    "--toggle".to_string(),
+                    "zoom-fullscreen".to_string(),
+                ]
+            }
         }
     }
 }
