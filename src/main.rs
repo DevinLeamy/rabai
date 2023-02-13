@@ -85,7 +85,7 @@ struct YabaiWindow {
     frame: YabaiFrame,
     role: String,
     subrole: String,
-    tags: String,
+    tags: Option<String>,
     display: u32,
     space: u32,
     level: u32,
