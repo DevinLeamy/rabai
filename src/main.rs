@@ -223,9 +223,13 @@ fn yabai_toggle_fullscreen(context: &YabaiContext) {
         return;
     }
     let focused_window = focused_window.unwrap();
+    let focused_space = focused_window.space;
     let new_fullscreen_setting = !focused_window.has_fullscreen_zoom;
 
     for window in context.windows.windows.iter() {
+        if window.space != focused_space {
+            continue;
+        }
         if window.has_fullscreen_zoom != new_fullscreen_setting {
             YabaiCommand::ToggleFullscreen(WindowTarget::Id(window.id))
                 .run()
