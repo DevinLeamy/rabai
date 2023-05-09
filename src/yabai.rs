@@ -1,6 +1,7 @@
 use std::process;
 
 use anyhow::Result;
+use YabaiCommand::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum WindowTarget {
@@ -17,22 +18,22 @@ pub enum Direction {
     Right,
 }
 
-impl ToString for Direction {
-    fn to_string(&self) -> String {
+impl Into<String> for Direction {
+    fn into(self) -> String {
         match self {
-            Direction::Left => "left".to_string(),
-            Direction::Right => "right".to_string(),
+            Direction::Left => "left".into(),
+            Direction::Right => "right".into(),
         }
     }
 }
 
-impl ToString for WindowTarget {
-    fn to_string(&self) -> String {
+impl Into<String> for WindowTarget {
+    fn into(self) -> String {
         match self {
-            WindowTarget::Next => "next".to_string(),
-            WindowTarget::First => "first".to_string(),
-            WindowTarget::Last => "last".to_string(),
-            WindowTarget::Previous => "prev".to_string(),
+            WindowTarget::Next => "next".into(),
+            WindowTarget::First => "first".into(),
+            WindowTarget::Last => "last".into(),
+            WindowTarget::Previous => "prev".into(),
             WindowTarget::Id(id) => id.to_string(),
         }
     }
@@ -41,35 +42,31 @@ impl ToString for WindowTarget {
 #[derive(Debug, Clone, Copy)]
 pub enum YabaiCommand {
     Focus(WindowTarget),
+    FocusSpace(u32),
     Swap(WindowTarget),
     Resize(Direction, i32),
     ToggleFullscreen(WindowTarget),
 }
 
-impl Into<Vec<String>> for YabaiCommand {
+impl YabaiCommand {
     fn into(self) -> Vec<String> {
         match self {
-            YabaiCommand::Focus(target) => vec![
-                "window".to_string(),
-                "--focus".to_string(),
-                target.to_string(),
+            Focus(target) => vec!["window".into(), "--focus".into(), target.into()],
+            FocusSpace(space_id) => {
+                vec!["space".into(), "--focus".into(), u32::to_string(&space_id)]
+            }
+            Swap(target) => vec!["window".into(), "--swap".into(), target.into()],
+            Resize(direction, amount) => vec![
+                "window".into(),
+                "--resize".into(),
+                format!("{}:{}:0", Into::<String>::into(direction), amount),
             ],
-            YabaiCommand::Swap(target) => vec![
-                "window".to_string(),
-                "--swap".to_string(),
-                target.to_string(),
-            ],
-            YabaiCommand::Resize(direction, amount) => vec![
-                "window".to_string(),
-                "--resize".to_string(),
-                format!("{}:{}:0", direction.to_string(), amount),
-            ],
-            YabaiCommand::ToggleFullscreen(target) => {
+            ToggleFullscreen(target) => {
                 vec![
-                    "window".to_string(),
-                    target.to_string(),
-                    "--toggle".to_string(),
-                    "zoom-fullscreen".to_string(),
+                    "window".into(),
+                    target.into(),
+                    "--toggle".into(),
+                    "zoom-fullscreen".into(),
                 ]
             }
         }

@@ -8,6 +8,8 @@ pub struct Args {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Command {
+    NextSpace,
+    PreviousSpace,
     /// Focus on the next window (cycles)
     ///
     /// Note: cycles the windows, unlike the default "yabai -m window --focus next"
@@ -24,7 +26,9 @@ pub enum Command {
         value: String,
     },
     /// Resize the window's right border to the left
-    Resize { direction: String },
+    Resize {
+        direction: String,
+    },
     /// Toggle fullscreen
     ToggleFullscreen,
 }
