@@ -30,9 +30,9 @@ fn main() -> Result<()> {
     let spaces: Vec<YabaiSpace> = serde_json::from_str(&raw_space_data()?)?;
 
     let context = YabaiContext::new(displays, spaces, windows, YabaiConfig { resize_shift: 80 });
-    if !context.has_focused_window() {
-        return Ok(());
-    }
+    // if !context.has_focused_window() {
+    //     return Ok(());
+    // }
     let command = Args::parse().command;
 
     match command {
@@ -208,11 +208,16 @@ impl YabaiContext {
     }
 
     fn focused_display(&self) -> YabaiDisplay {
-        let focused_window = self.focused_window();
-        println!("Focused window: {:?}", focused_window);
         for display in &self.displays {
-            if display.index == focused_window.display {
-                return display.clone();
+            for space_index in &display.spaces {
+                let space = &self
+                    .spaces
+                    .iter()
+                    .find(|s| s.index == *space_index)
+                    .unwrap();
+                if space.is_focused {
+                    return display.clone();
+                }
             }
         }
         panic!("No focused display found");
@@ -220,13 +225,13 @@ impl YabaiContext {
 
     // The space on the focused display that is currently visible.
     fn active_space(&self) -> YabaiSpace {
-        let focused_window = self.focused_window();
+        let focused_display = self.focused_display();
         for space in &self.spaces {
-            if space.is_visible && space.display == focused_window.display {
+            if space.is_visible && space.display == focused_display.index {
                 return space.clone();
             }
         }
-        panic!("No focused space found");
+        panic!("No active space found");
     }
 
     fn space_on_display(&self, location: Location) -> Option<u32> {
