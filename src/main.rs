@@ -25,26 +25,28 @@ mod yabai;
 use yabai::{Direction, WindowTarget, YabaiCommand};
 
 fn main() {
-    let context = YabaiContext::new(YabaiWindows::init().unwrap());
+    let context = YabaiContext::new(
+        YabaiWindows::init().unwrap(),
+        YabaiConfig { resize_shift: 80 },
+    );
     let command = Args::parse().command;
-    let config = YabaiConfig { resize_shift: 80 };
 
     println!("{:?}", command);
 
     match command {
-        Command::Next => yabai_focus_next(),
-        Command::Previous => yabai_focus_previous(),
-        Command::Swap => yabai_swap(),
+        Command::Next => context.yabai_focus_next(),
+        Command::Previous => context.yabai_focus_previous(),
+        Command::Swap => context.yabai_swap(),
         Command::Resize { direction } => {
             if &direction == "left" {
-                yabai_resize_left(&config).unwrap();
+                context.yabai_resize_left().unwrap();
             } else if &direction == "right" {
-                yabai_resize_right(&config).unwrap();
+                context.yabai_resize_right().unwrap();
             } else {
                 println!("Error: Invalid argument to resize");
             }
         }
-        Command::ToggleFullscreen => yabai_toggle_fullscreen(&context),
+        Command::ToggleFullscreen => context.yabai_toggle_fullscreen(),
         _ => {}
     };
 }
@@ -154,11 +156,81 @@ impl YabaiWindows {
 #[derive(Debug)]
 struct YabaiContext {
     windows: YabaiWindows,
+    config: YabaiConfig,
 }
 
 impl YabaiContext {
-    pub fn new(windows: YabaiWindows) -> Self {
-        Self { windows }
+    pub fn new(windows: YabaiWindows, config: YabaiConfig) -> Self {
+        Self { windows, config }
+    }
+
+    /// Shrink left window
+    fn yabai_resize_left(&self) -> Result<()> {
+        if YabaiCommand::Resize(Direction::Left, -self.config.resize_shift)
+            .run()
+            .is_err()
+        {
+            YabaiCommand::Resize(Direction::Right, -self.config.resize_shift).run()?;
+        }
+        Ok(())
+    }
+
+    /// Shrink right window
+    fn yabai_resize_right(&self) -> Result<()> {
+        if YabaiCommand::Resize(Direction::Right, self.config.resize_shift)
+            .run()
+            .is_err()
+        {
+            YabaiCommand::Resize(Direction::Left, self.config.resize_shift).run()?;
+        }
+        Ok(())
+    }
+
+    /// Swap two windows
+    /// Swaps with the next window, or the first if the current
+    /// window is the last window
+    fn yabai_swap(&self) {
+        if YabaiCommand::Swap(WindowTarget::Next).run().is_err() {
+            // Swap with the first window
+            YabaiCommand::Swap(WindowTarget::First).run().unwrap();
+        }
+    }
+
+    /// Focus on the next window (cycles)
+    fn yabai_focus_next(&self) {
+        if YabaiCommand::Focus(WindowTarget::Next).run().is_err() {
+            // Cycle to the first window
+            YabaiCommand::Focus(WindowTarget::First).run().unwrap();
+        }
+    }
+
+    /// Focus on the next window (cycles)
+    fn yabai_focus_previous(&self) {
+        if YabaiCommand::Focus(WindowTarget::Previous).run().is_err() {
+            // Cycle to the first window
+            YabaiCommand::Focus(WindowTarget::Last).run().unwrap();
+        }
+    }
+    /// Make all of the windows on a display fullscreen or non-fullscreen
+    fn yabai_toggle_fullscreen(&self) {
+        let focused_window = self.windows.focused_window();
+        if focused_window.is_none() {
+            return;
+        }
+        let focused_window = focused_window.unwrap();
+        let focused_space = focused_window.space;
+        let new_fullscreen_setting = !focused_window.has_fullscreen_zoom;
+
+        for window in self.windows.windows.iter() {
+            if window.space != focused_space {
+                continue;
+            }
+            if window.has_fullscreen_zoom != new_fullscreen_setting {
+                YabaiCommand::ToggleFullscreen(WindowTarget::Id(window.id))
+                    .run()
+                    .unwrap();
+            }
+        }
     }
 }
 
@@ -167,73 +239,4 @@ fn raw_window_data() -> Result<String> {
     r#"
     yabai -m query --windows
 "#
-}
-
-/// Shrink left window
-fn yabai_resize_left(config: &YabaiConfig) -> Result<()> {
-    if YabaiCommand::Resize(Direction::Left, -config.resize_shift)
-        .run()
-        .is_err()
-    {
-        YabaiCommand::Resize(Direction::Right, -config.resize_shift).run()?;
-    }
-    Ok(())
-}
-
-/// Shrink right window
-fn yabai_resize_right(config: &YabaiConfig) -> Result<()> {
-    if YabaiCommand::Resize(Direction::Right, config.resize_shift)
-        .run()
-        .is_err()
-    {
-        YabaiCommand::Resize(Direction::Left, config.resize_shift).run()?;
-    }
-    Ok(())
-}
-
-/// Swap two windows
-/// Swaps with the next window, or the first if the current
-/// window is the last window
-fn yabai_swap() -> () {
-    if YabaiCommand::Swap(WindowTarget::Next).run().is_err() {
-        // Swap with the first window
-        YabaiCommand::Swap(WindowTarget::First).run().unwrap();
-    }
-}
-
-/// Focus on the next window (cycles)
-fn yabai_focus_next() {
-    if YabaiCommand::Focus(WindowTarget::Next).run().is_err() {
-        // Cycle to the first window
-        YabaiCommand::Focus(WindowTarget::First).run().unwrap();
-    }
-}
-
-/// Focus on the next window (cycles)
-fn yabai_focus_previous() {
-    if YabaiCommand::Focus(WindowTarget::Previous).run().is_err() {
-        // Cycle to the first window
-        YabaiCommand::Focus(WindowTarget::Last).run().unwrap();
-    }
-}
-/// Make all of the windows on a display fullscreen or non-fullscreen
-fn yabai_toggle_fullscreen(context: &YabaiContext) {
-    let focused_window = context.windows.focused_window();
-    if focused_window.is_none() {
-        return;
-    }
-    let focused_window = focused_window.unwrap();
-    let focused_space = focused_window.space;
-    let new_fullscreen_setting = !focused_window.has_fullscreen_zoom;
-
-    for window in context.windows.windows.iter() {
-        if window.space != focused_space {
-            continue;
-        }
-        if window.has_fullscreen_zoom != new_fullscreen_setting {
-            YabaiCommand::ToggleFullscreen(WindowTarget::Id(window.id))
-                .run()
-                .unwrap();
-        }
-    }
 }
