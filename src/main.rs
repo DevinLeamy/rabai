@@ -25,10 +25,11 @@ mod yabai;
 use yabai::{Direction, WindowTarget, YabaiCommand};
 
 fn main() -> Result<()> {
-    let context = YabaiContext::new(
-        YabaiWindows::init().unwrap(),
-        YabaiConfig { resize_shift: 80 },
-    );
+    let windows: Vec<YabaiWindow> = serde_json::from_str(&raw_window_data()?)?;
+    let displays: Vec<YabaiDisplay> = serde_json::from_str(&raw_display_data()?)?;
+    let spaces: Vec<YabaiSpace> = serde_json::from_str(&raw_space_data()?)?;
+
+    let context = YabaiContext::new(displays, spaces, windows, YabaiConfig { resize_shift: 80 });
     if !context.has_focused_window() {
         return Ok(());
     }
@@ -133,6 +134,39 @@ struct YabaiWindow {
     is_grabbed: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[allow(unused)]
+struct YabaiDisplay {
+    id: u32,
+    uuid: String,
+    index: u32,
+    frame: YabaiFrame,
+    spaces: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[allow(unused)]
+struct YabaiSpace {
+    id: u32,
+    uuid: String,
+    index: u32,
+    label: String,
+    #[serde(alias = "type")]
+    display_type: String,
+    display: u32,
+    windows: Vec<u32>,
+    #[serde(alias = "first-window")]
+    first_window: u32,
+    #[serde(alias = "last-window")]
+    last_window: u32,
+    #[serde(alias = "has-focus")]
+    is_focused: bool,
+    #[serde(alias = "is-visible")]
+    is_visible: bool,
+    #[serde(alias = "is-native-fullscreen")]
+    is_fullscreen: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Location {
     Next,
@@ -142,18 +176,27 @@ enum Location {
 }
 
 #[derive(Debug)]
-struct YabaiWindows {
+struct YabaiContext {
+    displays: Vec<YabaiDisplay>,
+    spaces: Vec<YabaiSpace>,
     windows: Vec<YabaiWindow>,
+    config: YabaiConfig,
 }
 
-impl YabaiWindows {
-    pub fn init() -> anyhow::Result<Self> {
-        let raw_windows_json = raw_window_data()?;
-        let windows: Vec<YabaiWindow> = serde_json::from_str(&raw_windows_json)?;
-
-        Ok(Self { windows })
+impl YabaiContext {
+    pub fn new(
+        displays: Vec<YabaiDisplay>,
+        spaces: Vec<YabaiSpace>,
+        windows: Vec<YabaiWindow>,
+        config: YabaiConfig,
+    ) -> Self {
+        Self {
+            displays,
+            spaces,
+            windows,
+            config,
+        }
     }
-
     /// Returns the focused window.
     fn focused_window(&self) -> YabaiWindow {
         for window in &self.windows {
@@ -164,53 +207,54 @@ impl YabaiWindows {
         panic!("No focused window found");
     }
 
-    /// Returns the windows within the give space.
-    fn windows_on_display(&self, display: u32) -> Vec<&YabaiWindow> {
-        self.windows
-            .iter()
-            .filter(|window| window.display == display)
-            .collect()
+    fn focused_display(&self) -> YabaiDisplay {
+        let focused_window = self.focused_window();
+        println!("Focused window: {:?}", focused_window);
+        for display in &self.displays {
+            if display.index == focused_window.display {
+                return display.clone();
+            }
+        }
+        panic!("No focused display found");
+    }
+
+    // The space on the focused display that is currently visible.
+    fn active_space(&self) -> YabaiSpace {
+        let focused_window = self.focused_window();
+        for space in &self.spaces {
+            if space.is_visible && space.display == focused_window.display {
+                return space.clone();
+            }
+        }
+        panic!("No focused space found");
     }
 
     fn space_on_display(&self, location: Location) -> Option<u32> {
-        let focused_window = self.focused_window();
-        let windows = self.windows_on_display(focused_window.display);
-        let current_space = focused_window.space;
-        let mut spaces: Vec<u32> = windows.iter().map(|window| window.space).collect();
-        spaces.dedup();
-        spaces.sort();
+        let focused_display = self.focused_display();
+        let focused_space = self.active_space();
         if matches!(location, Location::First) || matches!(location, Location::Last) {
             if matches!(location, Location::First) {
-                return spaces.first().copied();
+                return focused_display.spaces.first().copied();
             } else {
-                return spaces.last().copied();
+                return focused_display.spaces.last().copied();
             }
         } else {
-            if matches!(location, Location::Next) && current_space + 1 <= *spaces.last()? {
-                return Some(current_space + 1);
-            } else if matches!(location, Location::Previous)
-                && current_space - 1 >= *spaces.first()?
+            let current_index = focused_space.index;
+            if matches!(location, Location::Next)
+                && current_index < *focused_display.spaces.last()?
             {
-                return Some(current_space - 1);
+                return Some(current_index + 1);
+            } else if matches!(location, Location::Previous)
+                && current_index > *focused_display.spaces.first()?
+            {
+                return Some(current_index - 1);
             }
         }
         None
     }
-}
-
-#[derive(Debug)]
-struct YabaiContext {
-    windows: YabaiWindows,
-    config: YabaiConfig,
-}
-
-impl YabaiContext {
-    pub fn new(windows: YabaiWindows, config: YabaiConfig) -> Self {
-        Self { windows, config }
-    }
 
     fn has_focused_window(&self) -> bool {
-        for window in &self.windows.windows {
+        for window in &self.windows {
             if window.has_focus {
                 return true;
             }
@@ -267,11 +311,11 @@ impl YabaiContext {
     }
     /// Make all of the windows on a display fullscreen or non-fullscreen
     fn toggle_fullscreen(&self) {
-        let focused_window = self.windows.focused_window();
+        let focused_window = self.focused_window();
         let focused_space = focused_window.space;
         let new_fullscreen_setting = !focused_window.has_fullscreen_zoom;
 
-        for window in self.windows.windows.iter() {
+        for window in self.windows.iter() {
             if window.space != focused_space {
                 continue;
             }
@@ -284,18 +328,18 @@ impl YabaiContext {
     }
 
     fn focus_space_next(&self) -> Result<()> {
-        if let Some(space) = self.windows.space_on_display(Location::Next) {
+        if let Some(space) = self.space_on_display(Location::Next) {
             YabaiCommand::FocusSpace(space).run()?;
-        } else if let Some(space) = self.windows.space_on_display(Location::First) {
+        } else if let Some(space) = self.space_on_display(Location::First) {
             YabaiCommand::FocusSpace(space).run()?;
         }
         Ok(())
     }
 
     fn focus_space_previous(&self) -> Result<()> {
-        if let Some(space) = self.windows.space_on_display(Location::Previous) {
+        if let Some(space) = self.space_on_display(Location::Previous) {
             YabaiCommand::FocusSpace(space).run()?;
-        } else if let Some(space) = self.windows.space_on_display(Location::Last) {
+        } else if let Some(space) = self.space_on_display(Location::Last) {
             YabaiCommand::FocusSpace(space).run()?;
         }
         Ok(())
@@ -306,5 +350,19 @@ impl YabaiContext {
 fn raw_window_data() -> Result<String> {
     r#"
     yabai -m query --windows
+"#
+}
+
+#[shell]
+fn raw_display_data() -> Result<String> {
+    r#"
+    yabai -m query --displays
+"#
+}
+
+#[shell]
+fn raw_space_data() -> Result<String> {
+    r#"
+    yabai -m query --spaces
 "#
 }
